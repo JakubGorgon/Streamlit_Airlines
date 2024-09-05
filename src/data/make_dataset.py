@@ -17,6 +17,9 @@ df.set_index("tweet_id", inplace=True)
 
 df.to_pickle("data/interim/tweets_processed.pkl")
 
-df_no_nas = df.dropna(axis=1)
+df_clean = df.dropna(axis=1)
 
-df_no_nas.to_pickle("data/interim/tweets_no_nas.pkl")
+df_clean.dtypes
+df_clean['tweet_created'] = pd.to_datetime(df_clean['tweet_created'])
+
+df_clean.to_pickle("data/interim/tweets_no_nas.pkl")
