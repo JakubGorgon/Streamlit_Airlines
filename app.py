@@ -4,14 +4,14 @@ import streamlit as st
 import plotly.express as px
 
 # st.set_page_config(layout="wide")
-
-@st.cache_data(persist=True)
+@st.cache_data(persist=False)
 def load_data():
     df_raw = pd.read_pickle("data/interim/tweets_processed.pkl")
     df = pd.read_pickle("data/interim/tweets_no_nas.pkl")
     return df_raw, df
 
 df_raw, df = load_data()
+
 
 st.markdown(
     """
@@ -66,7 +66,7 @@ formatted_tweet = f"Tweet: {tweet_text}\n\nRetweets: {retweet_count}"
 st.sidebar.write(formatted_tweet)
 
 chart_options = ("Bar Chart", "Pie Chart")
-st.sidebar.subheader("Visualisation to Plot")
+st.sidebar.subheader("Visualise Distribution of Tweets by Sentiment")
 plots = st.sidebar.selectbox("Visualisation Type", 
                                chart_options,
                                key='p')
@@ -77,13 +77,13 @@ counts = sentiment_series.values
 
 custom_colors = ['#EF553B', '#636EFA', '#00CC96'] 
 
-if not st.sidebar.checkbox("Hide", True):
+if st.sidebar.checkbox("Show Chart", False):
+    st.subheader("Distribution of Tweets by Sentiment")
     if "Pie Chart" in plots:
         fig = px.pie(data_frame=sentiment_series,
                     values=counts,
                     names=names,
                     color_discrete_sequence=custom_colors,
-                    title="Distribution of Tweets by Sentiment",
                     labels={"airline_sentiment":"Tweet Sentiment"}
                     )
         # st.subheader("Distribution of Tweets by Sentiment")
@@ -93,7 +93,6 @@ if not st.sidebar.checkbox("Hide", True):
         fig = px.bar(data_frame=sentiment_series,
                     y = counts,
                     x = names,
-                    title = "Distribution of Tweets by Sentiment",
                     color=names,
                     color_discrete_sequence=custom_colors,
                     labels={'airline_sentiment': 'Tweet Sentiment', 
@@ -101,22 +100,43 @@ if not st.sidebar.checkbox("Hide", True):
                     )
         st.plotly_chart(fig)
 
+st.sidebar.subheader("When and Where Are Users Tweeting From")
 
-st.write(df['latitude'])
+hours = st.sidebar.slider("Hour of Day", 0, 24, value = (12, 13))
 
+df['hour_tweet'] = df['tweet_created'].dt.hour
 
+# hours = list(range(0,24))
+# for h in hours:
+#     if hour == h:
+#         filt = df['hour_tweet'] == h
+#         df_filt = df[filt]
+        
+#         st.subheader(f"Map of Tweets Sent at {hour}")
+#         st.map(df_filt)
 
+# df['hour_tweet'] > hour[0] & (df['hour_tweet'] < hour[1])
+    
+def plot_map():
+    filt = (df['hour_tweet'] >= hours[0]) & (df['hour_tweet'] < hours[1])
+    df_filt = df[filt]
+    st.subheader(f"Tweets sent Between {hours[0]}:00 and {hours[1]}:00")
+    st.markdown(f"* {df_filt.shape[0]} total tweets")
+    
+    negative_ratio = round(df_filt['airline_sentiment'].value_counts(normalize=True)[0], 3)*100
+    st.markdown(f"* {negative_ratio}% of tweets were negative")
 
+    st.map(df_filt)
 
+if st.sidebar.checkbox("Show Map", False):
+    plot_map()
 
-
-df.groupby(by='airline')['airline_sentiment'].value_counts()
-
-
+df.groupby(by='airline')['airline_sentiment'].value_counts(normalize=True)
+df.shape
 
 # if st.sidebar.checkbox("Show Sample of Raw Data"):
 #     st.subheader("Raw Data")
-#     st.dataframe(df_raw.sample(10))
+#     st.dataframe(df_r3aw.sample(10))
 
 # if st.sidebar.checkbox("Show Sample of Data Without Missing Values"):
 #     st.subheader("Data without Missing Values")
