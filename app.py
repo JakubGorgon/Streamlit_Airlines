@@ -132,11 +132,55 @@ if st.sidebar.checkbox("Show Map", False):
     plot_map()
 
 df.groupby(by='airline')['airline_sentiment'].value_counts(normalize=True)
-df.shape
+
+st.sidebar.subheader("Break Down Airline Tweets by Sentiment")
+
+airlines = df['airline'].unique()
+choices = st.sidebar.multiselect("Airlines", options = airlines,
+                    placeholder = "Choose Airlines to Compare")
+
+compare_button = st.sidebar.button("Compare")
+
+sep = ", "
+
+if compare_button:
+    if len(choices) > 0:
+        st.subheader(f"Tweet Sentiment by Airline (including {sep.join(choices)})")
+
+        filt = df['airline'].isin(choices)
+        df_filt = df[filt]
+        grouped = pd.DataFrame(df_filt.groupby(by='airline')['airline_sentiment'].value_counts(normalize=True)*100)
+        grouped.reset_index(inplace=True)
+        grouped['proportion'] = round(grouped['proportion'], 2)
+        
+        insights_filt_pos = grouped['airline_sentiment'] == "positive"
+        df_insights = grouped[insights_filt_pos]
+        filt = df_insights['proportion'] == df_insights['proportion'].max()
+        name = df_insights[filt]["airline"].iloc[0]
+        value_pos = round(df_insights[filt]["proportion"].iloc[0], 2)
+
+        insights_filt_neg = grouped['airline_sentiment'] == "negative"
+        df_insights_neg = grouped[insights_filt_neg]
+        filt_neg = df_insights_neg['proportion'] == df_insights_neg['proportion'].max()
+        name_neg = df_insights_neg[filt_neg]["airline"].iloc[0]
+        value_neg = round(df_insights_neg[filt_neg]["proportion"].iloc[0], 2)
+
+        st.markdown(f"* {name_neg} has the highest proportion of negative tweets ({value_neg} %)")
+        st.markdown(f"* {name} has the highest proportion of positive tweets ({value_pos} %)")
+
+
+        fig = px.bar(data_frame =grouped, 
+                    x='airline', y='proportion',
+                    
+                    facet_col='airline_sentiment',
+                    color='airline',
+                    labels={"airline_sentiment":"Tweets", 
+                    "proportion": "Proportion of Tweets (%)"})
+        st.plotly_chart(fig)
 
 # if st.sidebar.checkbox("Show Sample of Raw Data"):
 #     st.subheader("Raw Data")
-#     st.dataframe(df_r3aw.sample(10))
+#     st.dataframe(df_raw.sample(10))
 
 # if st.sidebar.checkbox("Show Sample of Data Without Missing Values"):
 #     st.subheader("Data without Missing Values")
