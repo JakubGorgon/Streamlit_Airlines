@@ -2,6 +2,7 @@ import pandas as pd; import numpy as np
 from matplotlib import pyplot as plt; import seaborn as sns
 import streamlit as st
 import plotly.express as px
+from wordcloud import WordCloud, STOPWORDS
 
 # st.set_page_config(layout="wide")
 @st.cache_data(persist=False)
@@ -123,7 +124,7 @@ def plot_map():
     st.subheader(f"Tweets sent Between {hours[0]}:00 and {hours[1]}:00")
     st.markdown(f"* {df_filt.shape[0]} total tweets")
     
-    negative_ratio = round(df_filt['airline_sentiment'].value_counts(normalize=True)[0], 3)*100
+    negative_ratio = round(df_filt['airline_sentiment'].value_counts(normalize=True)[0], 2)*100
     st.markdown(f"* {negative_ratio}% of tweets were negative")
 
     st.map(df_filt)
@@ -139,44 +140,110 @@ airlines = df['airline'].unique()
 choices = st.sidebar.multiselect("Airlines", options = airlines,
                     placeholder = "Choose Airlines to Compare")
 
-compare_button = st.sidebar.button("Compare")
 
 sep = ", "
 
-if compare_button:
-    if len(choices) > 0:
-        st.subheader(f"Tweet Sentiment by Airline (including {sep.join(choices)})")
+if len(choices) > 0:
+    st.subheader(f"Tweet Sentiment by Airline (including {sep.join(choices)})")
 
-        filt = df['airline'].isin(choices)
-        df_filt = df[filt]
-        grouped = pd.DataFrame(df_filt.groupby(by='airline')['airline_sentiment'].value_counts(normalize=True)*100)
-        grouped.reset_index(inplace=True)
-        grouped['proportion'] = round(grouped['proportion'], 2)
+    filt = df['airline'].isin(choices)
+    df_filt = df[filt]
+    grouped = pd.DataFrame(df_filt.groupby(by='airline')['airline_sentiment'].value_counts(normalize=True)*100)
+    grouped.reset_index(inplace=True)
+    grouped['proportion'] = round(grouped['proportion'], 2)
         
-        insights_filt_pos = grouped['airline_sentiment'] == "positive"
-        df_insights = grouped[insights_filt_pos]
-        filt = df_insights['proportion'] == df_insights['proportion'].max()
-        name = df_insights[filt]["airline"].iloc[0]
-        value_pos = round(df_insights[filt]["proportion"].iloc[0], 2)
+    insights_filt_pos = grouped['airline_sentiment'] == "positive"
+    df_insights = grouped[insights_filt_pos]
+    filt = df_insights['proportion'] == df_insights['proportion'].max()
+    name = df_insights[filt]["airline"].iloc[0]
+    value_pos = round(df_insights[filt]["proportion"].iloc[0], 2)
 
-        insights_filt_neg = grouped['airline_sentiment'] == "negative"
-        df_insights_neg = grouped[insights_filt_neg]
-        filt_neg = df_insights_neg['proportion'] == df_insights_neg['proportion'].max()
-        name_neg = df_insights_neg[filt_neg]["airline"].iloc[0]
-        value_neg = round(df_insights_neg[filt_neg]["proportion"].iloc[0], 2)
+    insights_filt_neg = grouped['airline_sentiment'] == "negative"
+    df_insights_neg = grouped[insights_filt_neg]
+    filt_neg = df_insights_neg['proportion'] == df_insights_neg['proportion'].max()
+    name_neg = df_insights_neg[filt_neg]["airline"].iloc[0]
+    value_neg = round(df_insights_neg[filt_neg]["proportion"].iloc[0], 2)
 
-        st.markdown(f"* {name_neg} has the highest proportion of negative tweets ({value_neg} %)")
-        st.markdown(f"* {name} has the highest proportion of positive tweets ({value_pos} %)")
+    st.markdown(f"* {name_neg} has the highest proportion of negative tweets ({value_neg} %)")
+    st.markdown(f"* {name} has the highest proportion of positive tweets ({value_pos} %)")
 
 
-        fig = px.bar(data_frame =grouped, 
+    fig = px.bar(data_frame =grouped, 
                     x='airline', y='proportion',
                     
                     facet_col='airline_sentiment',
                     color='airline',
                     labels={"airline_sentiment":"Tweets", 
                     "proportion": "Proportion of Tweets (%)"})
-        st.plotly_chart(fig)
+    st.plotly_chart(fig)
+
+st.sidebar.subheader("Word Cloud for Tweets")
+sentiment_radio = st.sidebar.radio("Choose Sentiment", 
+                tuple(df['airline_sentiment'].unique()))
+
+
+
+# for word in words:
+#     if 'http' in word or word.startswith("@") or word == 'RT':
+#         words.remove(word)
+
+@st.cache_data(persist=True)
+def split_df_by_sentiment():
+    filt_neg = df['airline_sentiment'] == 'negative'
+    filt_neu = df['airline_sentiment'] == 'neutral'
+    filt_pos = df['airline_sentiment'] == 'positive'
+
+    df_neg = df[filt_neg]
+    df_neu = df[filt_neu]
+    df_pos = df[filt_pos]
+
+    return df_neg, df_neu, df_pos
+
+df_neg, df_neu, df_pos = split_df_by_sentiment()
+
+@st.cache_data(persist=True)
+def create_word_lists():
+    sep = " "
+    
+    text_list_neg = df_neg['text'].tolist()
+    text_list_neu = df_neu['text'].tolist()
+    text_list_pos = df_pos['text'].tolist()
+
+    words_neg = sep.join(text_list_neg).split()
+    words_neu = sep.join(text_list_neu).split()
+    words_pos = sep.join(text_list_pos).split()
+
+    lists_of_words = [words_neg, words_neu, words_pos]
+
+
+    for list_ in lists_of_words:
+        for word in list_:
+            if 'http' in word or word.startswith("@") or word == 'RT':
+                list_.remove(word)
+    
+
+    return words_neg, words_neu, words_pos
+
+words_neg, words_neu, words_pos = create_word_lists()
+
+
+if st.sidebar.checkbox("Show Word Cloud", False):
+    st.subheader(f"Word Cloud for {sentiment_radio.capitalize()} Tweets")
+    wordcloud = WordCloud(stopwords=STOPWORDS,
+                            background_color = 'white',
+                            width=800,
+                            height=640,
+                            colormap='plasma'
+                            )
+    if sentiment_radio == 'negative':
+        wordcloud.generate(' '.join(words_neg))
+    elif sentiment_radio == 'neutral':
+        wordcloud.generate(' '.join(words_neu))
+    elif sentiment_radio == 'positive':
+        wordcloud.generate(' '.join(words_pos))
+
+    st.image(wordcloud.to_array())
+
 
 # if st.sidebar.checkbox("Show Sample of Raw Data"):
 #     st.subheader("Raw Data")
